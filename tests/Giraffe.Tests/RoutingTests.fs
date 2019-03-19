@@ -620,6 +620,62 @@ let ``routeBind: Route with (/?) matches no trailing slash``() =
     }
 
 [<Fact>]
+let ``routeBind: Route with {*foo} matches no path segment``() =
+    let ctx = Substitute.For<HttpContext>()
+    let app = GET >=> routeBind<RouteBind> "/{*foo}/{bar}/{id}" (fun m -> sprintf "%s %i %O" m.Foo m.Bar m.Id |> text)
+    ctx.Request.Method.ReturnsForAnyArgs "GET" |> ignore
+    ctx.Request.Path.ReturnsForAnyArgs (PathString("/1/f40580b1-d55b-4fe2-b6fb-ca4f90749a9d")) |> ignore
+    ctx.Response.Body <- new MemoryStream()
+    task {
+        let! result = app next ctx
+
+        match result with
+        | None     -> assertFail "It was expected that the result would be 1 f40580b1-d55b-4fe2-b6fb-ca4f90749a9d"
+        | Some ctx ->
+            let body = getBody ctx
+            Assert.Equal(" 1 f40580b1-d55b-4fe2-b6fb-ca4f90749a9d", body)
+    }
+
+[<Fact>]
+let ``routeBind: Route with {*foo} matches one path segment``() =
+    let ctx = Substitute.For<HttpContext>()
+    let app = GET >=> routeBind<RouteBind> "/{*foo}/{bar}/{id}" (fun m -> sprintf "%s %i %O" m.Foo m.Bar m.Id |> text)
+    ctx.Request.Method.ReturnsForAnyArgs "GET" |> ignore
+    ctx.Request.Path.ReturnsForAnyArgs (PathString("/Hello/1/f40580b1-d55b-4fe2-b6fb-ca4f90749a9d")) |> ignore
+    ctx.Response.Body <- new MemoryStream()
+    task {
+        let! result = app next ctx
+
+        match result with
+        | None     -> assertFail "It was expected that the result would be Hello 1 f40580b1-d55b-4fe2-b6fb-ca4f90749a9d"
+        | Some ctx ->
+            let body = getBody ctx
+            Assert.Equal("Hello 1 f40580b1-d55b-4fe2-b6fb-ca4f90749a9d", body)
+    }
+
+[<Fact>]
+let ``routeBind: Route with {*foo} matches multiple path segments``() =
+    let ctx = Substitute.For<HttpContext>()
+    let app = GET >=> routeBind<RouteBind> "/{*foo}/{bar}/{id}" (fun m -> sprintf "%s %i %O" m.Foo m.Bar m.Id |> text)
+    ctx.Request.Method.ReturnsForAnyArgs "GET" |> ignore
+    ctx.Request.Path.ReturnsForAnyArgs (PathString("/Hello/World/Xyzzy/1/f40580b1-d55b-4fe2-b6fb-ca4f90749a9d")) |> ignore
+    ctx.Response.Body <- new MemoryStream()
+    task {
+        let! result = app next ctx
+
+        match result with
+        | None     -> assertFail "It was expected that the result would be Hello/World/Xyzzy 1 f40580b1-d55b-4fe2-b6fb-ca4f90749a9d"
+        | Some ctx ->
+            let body = getBody ctx
+            Assert.Equal("Hello/World/Xyzzy 1 f40580b1-d55b-4fe2-b6fb-ca4f90749a9d", body)
+    }
+    
+//TODO: {*foo}{bar}/{id} x 3
+//TODO: {bar}/{id}/{*foo} x 3
+//TODO: {bar}/{id}/{*foo}(/?) x 6
+//TODO: {bar}/{id}/{*foo}(/*) x 6
+
+[<Fact>]
 let ``routeBind: Route with non parameterised part``() =
     let ctx = Substitute.For<HttpContext>()
     let app = GET >=> routeBind<RouteBind> "/api/{foo}/{bar}/{id}" (fun m -> sprintf "%s %i %O" m.Foo m.Bar m.Id |> text)

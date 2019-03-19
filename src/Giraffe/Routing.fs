@@ -231,9 +231,17 @@ let routeCif (path : PrintfFormat<_,_,_,_, 'T>) (routeHandler : 'T -> HttpHandle
 ///
 /// A Giraffe `HttpHandler` function which can be composed into a bigger web application.
 ///
-let routeBind<'T> (route : string) (routeHandler : 'T -> HttpHandler) : HttpHandler =
+let routeBind<'T> (route : string) (routeHandler : 'T -> HttpHandler) : HttpHandler =        
     fun (next : HttpFunc) (ctx : HttpContext) ->
-        let pattern = route.Replace("{", "(?<").Replace("}", ">[^/\n]+)") |> sprintf "^%s$"
+        //TODO: {*foo}(/?) is going to be a problem if foo is empty and we have the trailing /
+        //TODO: because we will drop to the second case and greedily include / in the value
+        //TODO: only way to fix that is detect /, (/?) and (/*) which is pretty gnarly
+        let pattern = Regex.Replace(route, "[{]([*])?([^}]+)[}](/)?", fun m ->
+            let groupName = m.Groups.[2].Value
+            match m.Groups.[1].Success, m.Groups.[3].Success with
+            | true, true -> sprintf "((?<%s>.*[^/])/)?" groupName
+            | true, false -> sprintf "(?<%s>.*)" groupName
+            | false, _ -> sprintf "(?<%s>[^/\n]+)%s" groupName m.Groups.[3].Value)
         let regex   = Regex(pattern, RegexOptions.IgnoreCase)
         let result  = regex.Match (SubRouting.getNextPartOfPath ctx)
         match result.Success with
